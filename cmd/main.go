@@ -13,8 +13,8 @@ import (
 
 func main() {
 	// 定义命令行参数（支持简写）
-	api := flag.String("api", "https://api.market.huajuhe.com/a", "API 接口地址")
-	apiShort := flag.String("a", "https://api.market.huajuhe.com/a", "API 接口地址（简写）")
+	api := flag.String("api", "", "API 接口地址")
+	apiShort := flag.String("a", "", "API 接口地址（简写）")
 
 	goroutines := flag.Int("goroutines", 12, "同时下载的协程数量")
 	goroutinesShort := flag.Int("g", 12, "同时下载的协程数量（简写）")
@@ -26,7 +26,7 @@ func main() {
 
 	// 使用简写参数值（如果设置了简写，优先使用简写）
 	finalAPI := *api
-	if *apiShort != "https://api.market.huajuhe.com/a" {
+	if *apiShort != "" {
 		finalAPI = *apiShort
 	}
 
