@@ -1,0 +1,29 @@
+# 二进制文件
+netflood
+netflood-*
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# 编译输出目录
+build/
+
+# 测试文件
+*.test
+*.out
+
+# 速度统计文件
+speed
+
+# IDE 相关
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Go 相关
+vendor/
+

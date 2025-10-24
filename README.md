@@ -18,7 +18,7 @@ NetFlood 是一个高性能的带宽测试工具，支持多协程并发下载�
 
 ```yaml
 # API 接口地址，用于获取下载链接列表
-api: http://yd.xingshangyun.com/bh.php?bh=2
+api: api
 
 # 同时下载的协程数量
 goroutines: 5
@@ -107,8 +107,8 @@ go build -o netflood ./cmd
 
 示例：
 ```
-配置加载成功: API=http://yd.xingshangyun.com/bh.php?bh=2, 协程数=5
-从 API 加载下载任务: http://yd.xingshangyun.com/bh.php?bh=2
+配置加载成功: API=, 协程数=5
+从 API 加载下载任务: 
 成功加载 3 个下载任务
   任务 1: IP=183.214.139.130, URL=https://imtt2.dd.qq.com/sjy.00008/sjy.00001/16891/...
   任务 2: IP=111.62.48.158, URL=https://s2.g.mi.com/523b71ac1ec2f923aeb500f167760b08/...
