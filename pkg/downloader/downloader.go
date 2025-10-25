@@ -13,6 +13,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/dora-exku/netflood/pkg/timerange"
 )
 
 // DownloadTask 下载任务
@@ -23,12 +25,13 @@ type DownloadTask struct {
 
 // Downloader 下载器
 type Downloader struct {
-	client          *http.Client
-	tasks           []DownloadTask
-	goroutines      int
-	bytesDownloaded atomic.Int64 // 已下载的字节数
-	speedFile       *os.File     // 速度文件
-	mu              sync.Mutex
+	client           *http.Client
+	tasks            []DownloadTask
+	goroutines       int
+	bytesDownloaded  atomic.Int64 // 已下载的字节数
+	speedFile        *os.File     // 速度文件
+	mu               sync.Mutex
+	timeRangeManager *timerange.TimeRangeManager // 时间段管理器
 }
 
 // New 创建新的下载器
@@ -37,6 +40,11 @@ func New(goroutines int) *Downloader {
 		client:     &http.Client{Timeout: 30 * time.Second},
 		goroutines: goroutines,
 	}
+}
+
+// SetTimeRangeManager 设置时间段管理器
+func (d *Downloader) SetTimeRangeManager(trm *timerange.TimeRangeManager) {
+	d.timeRangeManager = trm
 }
 
 // LoadTasksFromAPI 从API加载下载任务
@@ -101,7 +109,7 @@ func (d *Downloader) parseTasksFromContent(content string) error {
 	return nil
 }
 
-// Start 开始下载（循环模式）
+// Start 开始下载（循环模式，支持时间段控制）
 func (d *Downloader) Start(ctx context.Context) error {
 	if len(d.tasks) == 0 {
 		return fmt.Errorf("没有下载任务")
@@ -115,8 +123,48 @@ func (d *Downloader) Start(ctx context.Context) error {
 	}
 	defer d.speedFile.Close()
 
+	// 主循环：处理时间段控制
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			// 检查是否在允许的时间段内
+			if d.timeRangeManager != nil && !d.timeRangeManager.IsInRange() {
+				// 不在时间段内，等待到下一个时间段
+				nextStart := d.timeRangeManager.GetNextRangeStart()
+				waitDuration := d.timeRangeManager.WaitUntilNextRange()
+
+				fmt.Printf("\n⏰ 当前不在下载时间段内，等待到 %s (等待 %v)\n",
+					nextStart.Format("15:04:05"), waitDuration.Round(time.Second))
+
+				// 使用定时器等待
+				timer := time.NewTimer(waitDuration)
+				select {
+				case <-ctx.Done():
+					timer.Stop()
+					return nil
+				case <-timer.C:
+					fmt.Println("\n✅ 进入下载时间段，开始下载...")
+				}
+			}
+
+			// 在时间段内运行下载
+			if err := d.runDownloadSession(ctx); err != nil {
+				return err
+			}
+		}
+	}
+}
+
+// runDownloadSession 运行一次下载会话（直到时间段结束或context取消）
+func (d *Downloader) runDownloadSession(ctx context.Context) error {
+	// 创建会话上下文
+	sessionCtx, sessionCancel := context.WithCancel(ctx)
+	defer sessionCancel()
+
 	// 启动速度统计协程
-	go d.reportSpeed(ctx)
+	go d.reportSpeed(sessionCtx)
 
 	// 创建任务通道（带缓冲，用于循环发送任务）
 	taskChan := make(chan DownloadTask, d.goroutines*2)
@@ -124,15 +172,24 @@ func (d *Downloader) Start(ctx context.Context) error {
 	// 启动任务分发协程（循环发送任务）
 	go func() {
 		defer close(taskChan)
+		ticker := time.NewTicker(time.Second) // 每秒检查一次时间段
+		defer ticker.Stop()
+
 		for {
 			select {
-			case <-ctx.Done():
+			case <-sessionCtx.Done():
 				return
+			case <-ticker.C:
+				// 检查是否还在时间段内
+				if d.timeRangeManager != nil && !d.timeRangeManager.IsInRange() {
+					fmt.Println("\n⏰ 已超出下载时间段，停止分发新任务，等待当前任务完成...")
+					return
+				}
 			default:
 				// 循环发送所有任务
 				for _, task := range d.tasks {
 					select {
-					case <-ctx.Done():
+					case <-sessionCtx.Done():
 						return
 					case taskChan <- task:
 						// 任务已发送，继续
@@ -148,16 +205,12 @@ func (d *Downloader) Start(ctx context.Context) error {
 		wg.Add(1)
 		go func(workerID int) {
 			defer wg.Done()
-			d.worker(ctx, workerID, taskChan)
+			d.worker(sessionCtx, workerID, taskChan)
 		}(i)
 	}
 
-	// 等待所有工作协程完成（只有在 ctx 被取消时才会结束）
+	// 等待所有工作协程完成
 	wg.Wait()
-
-	// 输出最终统计
-	fmt.Println("\n正在保存最终统计数据...")
-	d.printFinalStats()
 
 	return nil
 }

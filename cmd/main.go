@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/dora-exku/netflood/pkg/downloader"
+	"github.com/dora-exku/netflood/pkg/timerange"
 )
 
 func main() {
@@ -21,6 +22,9 @@ func main() {
 
 	useDemo := flag.Bool("demo", false, "使用demo.txt文件而不是API")
 	useDemoShort := flag.Bool("d", false, "使用demo.txt文件而不是API（简写）")
+
+	timeRangeStr := flag.String("time", "", "下载时间段，格式: HH:MM-HH:MM,HH:MM-HH:MM (例如: 12:00-13:00,14:00-15:00)")
+	timeRangeShort := flag.String("t", "", "下载时间段（简写）")
 
 	flag.Parse()
 
@@ -37,10 +41,31 @@ func main() {
 
 	finalUseDemo := *useDemo || *useDemoShort
 
+	finalTimeRange := *timeRangeStr
+	if *timeRangeShort != "" {
+		finalTimeRange = *timeRangeShort
+	}
+
 	fmt.Printf("配置参数: API=%s, 协程数=%d\n", finalAPI, finalGoroutines)
+
+	// 解析时间段
+	trm, err := timerange.NewTimeRangeManager(finalTimeRange)
+	if err != nil {
+		fmt.Printf("解析时间段失败: %v\n", err)
+		fmt.Println("时间段格式示例: -time 12:00-13:00,14:00-15:00")
+		os.Exit(1)
+	}
+	if trm.IsEnabled() {
+		fmt.Printf("下载时间段: %s (每天重复)\n", trm.String())
+	} else {
+		fmt.Println("下载时间段: 全天候运行")
+	}
 
 	// 创建下载器
 	dl := downloader.New(finalGoroutines)
+
+	// 设置时间段管理器
+	dl.SetTimeRangeManager(trm)
 
 	// 加载下载任务
 	if finalUseDemo {
@@ -91,6 +116,9 @@ func main() {
 	fmt.Printf("\n开始下载，使用 %d 个协程...\n", finalGoroutines)
 	fmt.Println("速度统计将保存到 ./speed 文件")
 	fmt.Println("⚡ 循环下载模式：协程将不停下载任务")
+	if trm.IsEnabled() {
+		fmt.Printf("⏰ 时间段控制已启用：%s (每天重复)\n", trm.String())
+	}
 	fmt.Println("⚠️  按 Ctrl+C 优雅退出")
 	fmt.Println()
 
