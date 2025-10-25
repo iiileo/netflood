@@ -113,34 +113,91 @@
 
 ---
 
+## 统计数据上报
+
+### 7. 启用统计上报
+
+```bash
+# 每10秒上报统计数据到API
+./netflood -demo -stats-api https://api.example.com/stats
+
+# 使用简写
+./netflood -d -s https://api.example.com/stats
+```
+
+**输出示例：**
+```
+配置参数: API=, 协程数=12
+统计上报API: https://api.example.com/stats (每10秒上报一次)
+从 demo.txt 文件加载下载任务...
+
+[速度统计] 当前速度: 18.45 MB/s | 平均速度: 15.23 MB/s | 总下载: 245.60 MB
+[统计上报] 成功: 主机=my-server, 平均速度=15.23 MB/s, 总下载=245.60 MB, 时间段=全天候
+```
+
+**上报数据格式（JSON）：**
+```json
+{
+  "name": "my-server",
+  "speed": 15.23,
+  "total": 245.60,
+  "time": "全天候"
+}
+```
+
+### 8. 时间段控制 + 统计上报
+
+```bash
+# 9:00-18:00 下载，并上报统计数据
+./netflood -d -g 20 -t "09:00-18:00" -s https://api.example.com/stats
+```
+
+**输出示例：**
+```
+配置参数: API=, 协程数=20
+下载时间段: 09:00-18:00 (每天重复)
+统计上报API: https://api.example.com/stats (每10秒上报一次)
+
+[统计上报] 成功: 主机=my-server, 平均速度=25.50 MB/s, 总下载=1500.00 MB, 时间段=09:00-18:00
+```
+
+---
+
 ## 组合使用
 
-### 7. 工作时间带宽测试
+### 9. 工作时间带宽测试
 
 ```bash
 # 工作日 9:00-12:00 和 14:00-18:00，使用 30 个协程
 ./netflood -api https://api.example.com/download -g 30 -t "09:00-12:00,14:00-18:00"
 ```
 
-### 8. 夜间低速测试
+### 10. 夜间低速测试
 
 ```bash
 # 每天晚上 22:00-06:00，使用 5 个协程
 ./netflood -d -g 5 -t 22:00-06:00
 ```
 
-### 9. 午休时间高速测试
+### 11. 午休时间高速测试
 
 ```bash
 # 中午 12:00-14:00，使用 50 个协程
 ./netflood -d -g 50 -t 12:00-14:00
 ```
 
+### 12. 完整功能组合
+
+```bash
+# 时间段 + 统计上报 + 自定义协程
+./netflood -api https://api.example.com/download -g 30 -t "09:00-18:00" -s https://api.example.com/stats
+```
+
 ---
 
 ## 优雅退出
 
-### 10. 等待任务完成后退出
+### 13. 等待任务完成后退出
 
 ```bash
 # 运行程序
@@ -155,7 +212,7 @@
 ✅ 下载已停止，程序退出
 ```
 
-### 11. 强制立即退出
+### 14. 强制立即退出
 
 ```bash
 # 运行程序
@@ -214,6 +271,38 @@
 ```bash
 ./netflood -d -g 100 -t "03:00-04:00"
 ```
+
+### 场景 6：集中监控多服务器
+
+在多台服务器上部署，统一上报到监控中心：
+
+```bash
+# 服务器A
+./netflood -d -g 20 -t "09:00-18:00" -s https://monitor.example.com/api/stats
+
+# 服务器B
+./netflood -d -g 20 -t "09:00-18:00" -s https://monitor.example.com/api/stats
+
+# 服务器C
+./netflood -d -g 20 -t "09:00-18:00" -s https://monitor.example.com/api/stats
+```
+
+监控中心可以通过主机名区分不同服务器的统计数据。
+
+### 场景 7：性能监控和告警
+
+配合监控系统使用，自动告警：
+
+```bash
+# 启用统计上报
+./netflood -api https://api.example.com/download -g 30 -s https://monitor.example.com/api/stats
+```
+
+监控系统可以：
+- 实时监控各服务器下载速度
+- 检测网络异常（速度突降）
+- 统计总带宽使用情况
+- 生成报表和图表
 
 ---
 

@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/dora-exku/netflood/pkg/stats"
 	"github.com/dora-exku/netflood/pkg/timerange"
 )
 
@@ -32,6 +33,8 @@ type Downloader struct {
 	speedFile        *os.File     // 速度文件
 	mu               sync.Mutex
 	timeRangeManager *timerange.TimeRangeManager // 时间段管理器
+	statsReporter    *stats.Reporter             // 统计上报器
+	startTime        time.Time                   // 开始时间
 }
 
 // New 创建新的下载器
@@ -45,6 +48,16 @@ func New(goroutines int) *Downloader {
 // SetTimeRangeManager 设置时间段管理器
 func (d *Downloader) SetTimeRangeManager(trm *timerange.TimeRangeManager) {
 	d.timeRangeManager = trm
+}
+
+// SetStatsAPI 设置统计上报API
+func (d *Downloader) SetStatsAPI(apiURL string) error {
+	reporter, err := stats.NewReporter(apiURL)
+	if err != nil {
+		return fmt.Errorf("创建统计上报器失败: %w", err)
+	}
+	d.statsReporter = reporter
+	return nil
 }
 
 // LoadTasksFromAPI 从API加载下载任务
@@ -115,6 +128,9 @@ func (d *Downloader) Start(ctx context.Context) error {
 		return fmt.Errorf("没有下载任务")
 	}
 
+	// 记录开始时间
+	d.startTime = time.Now()
+
 	// 打开速度文件
 	var err error
 	d.speedFile, err = os.Create("./speed")
@@ -122,6 +138,21 @@ func (d *Downloader) Start(ctx context.Context) error {
 		return fmt.Errorf("创建速度文件失败: %w", err)
 	}
 	defer d.speedFile.Close()
+
+	// 启动统计上报协程（如果启用）
+	if d.statsReporter != nil {
+		go d.statsReporter.StartReporting(
+			ctx,
+			func() int64 { return d.bytesDownloaded.Load() },
+			func() time.Time { return d.startTime },
+			func() string {
+				if d.timeRangeManager != nil && d.timeRangeManager.IsEnabled() {
+					return d.timeRangeManager.String()
+				}
+				return "全天候"
+			},
+		)
+	}
 
 	// 主循环：处理时间段控制
 	for {

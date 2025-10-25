@@ -26,6 +26,9 @@ func main() {
 	timeRangeStr := flag.String("time", "", "下载时间段，格式: HH:MM-HH:MM,HH:MM-HH:MM (例如: 12:00-13:00,14:00-15:00)")
 	timeRangeShort := flag.String("t", "", "下载时间段（简写）")
 
+	statsAPI := flag.String("stats-api", "", "统计数据上报API地址（不设置则不上报）")
+	statsAPIShort := flag.String("s", "", "统计数据上报API地址（简写）")
+
 	flag.Parse()
 
 	// 使用简写参数值（如果设置了简写，优先使用简写）
@@ -44,6 +47,11 @@ func main() {
 	finalTimeRange := *timeRangeStr
 	if *timeRangeShort != "" {
 		finalTimeRange = *timeRangeShort
+	}
+
+	finalStatsAPI := *statsAPI
+	if *statsAPIShort != "" {
+		finalStatsAPI = *statsAPIShort
 	}
 
 	fmt.Printf("配置参数: API=%s, 协程数=%d\n", finalAPI, finalGoroutines)
@@ -66,6 +74,17 @@ func main() {
 
 	// 设置时间段管理器
 	dl.SetTimeRangeManager(trm)
+
+	// 设置统计上报API
+	if finalStatsAPI != "" {
+		if err := dl.SetStatsAPI(finalStatsAPI); err != nil {
+			fmt.Printf("设置统计上报失败: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("统计上报API: %s (每10秒上报一次)\n", finalStatsAPI)
+	} else {
+		fmt.Println("统计上报: 未启用")
+	}
 
 	// 加载下载任务
 	if finalUseDemo {

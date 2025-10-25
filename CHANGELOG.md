@@ -1,5 +1,87 @@
 # 更新日志
 
+## [v2.1.0] - 2025-10-25
+
+### 🎉 新增功能
+
+#### 统计数据上报
+- ✅ 支持将统计数据自动上报到指定API
+- ✅ 每10秒自动上报一次
+- ✅ 包含主机名、平均速度、总下载量、时间范围
+- ✅ 新增 `-stats-api` / `-s` 参数
+
+**使用示例：**
+```bash
+# 启用统计上报
+./netflood -demo -stats-api https://api.example.com/stats
+
+# 组合使用
+./netflood -d -g 20 -t "09:00-18:00" -s https://api.example.com/stats
+```
+
+**上报数据格式（JSON）：**
+```json
+{
+  "name": "主机名称",
+  "speed": 15.5,     // 平均下载速度（MB/s）
+  "total": 1024.0,   // 总下载量（MB）
+  "time": "12:00-13:00"  // 时间范围
+}
+```
+
+### 🔧 改进
+
+1. **监控能力增强**
+   - 支持集中监控多台服务器
+   - 便于统计分析和告警
+
+2. **文档完善**
+   - 更新 README.md 添加统计上报说明
+   - 更新 EXAMPLES.md 添加统计上报示例
+   - 新增实际应用场景
+
+### 📝 技术实现
+
+**统计上报架构：**
+```
+Reporter (pkg/stats)
+├── 获取主机名
+├── 每10秒上报一次
+├── HTTP POST 发送 JSON 数据
+└── 错误处理和重试
+
+Downloader
+├── 集成 Reporter
+├── 提供统计数据回调
+└── 自动启动上报协程
+```
+
+### 🧪 测试
+
+新增单元测试：
+- ✅ Reporter 创建测试
+- ✅ 数据上报测试
+- ✅ 服务器错误处理测试
+- ✅ 数据格式验证测试
+
+**测试结果：**
+```
+=== RUN   TestNewReporter
+--- PASS: TestNewReporter (0.00s)
+=== RUN   TestReporter_Report
+--- PASS: TestReporter_Report (0.00s)
+=== RUN   TestReporter_Report_ServerError
+--- PASS: TestReporter_Report_ServerError (0.00s)
+PASS
+```
+
+### 📦 依赖变化
+
+- 无新增外部依赖
+- 仅使用 Go 标准库
+
+---
+
 ## [v2.0.0] - 2025-10-25
 
 ### 🎉 新增功能

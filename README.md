@@ -12,6 +12,7 @@ NetFlood 是一个高性能的带宽测试工具，支持多协程并发下载�
 - ✅ 优雅退出（Ctrl+C）
 - ✅ 时间段控制（支持多时间段，每天自动重复）
 - ✅ 循环下载模式（任务不停循环执行）
+- ✅ 统计数据上报（每10秒自动上报到API）
 
 ## 配置文件
 
@@ -123,6 +124,7 @@ go build -o netflood ./cmd
 | `-demo` | `-d` | 使用 demo.txt 文件而不是 API | false |
 | `-goroutines` | `-g` | 同时下载的协程数量 | 12 |
 | `-time` | `-t` | 下载时间段，格式: HH:MM-HH:MM,HH:MM-HH:MM | 无（全天候） |
+| `-stats-api` | `-s` | 统计数据上报API地址 | 无（不上报） |
 
 ### 时间段控制说明
 
@@ -132,6 +134,35 @@ go build -o netflood ./cmd
 - **每天自动重复**：时间段每天自动重复，无需手动重启程序
 - **优雅切换**：到达时间段结束时，等待当前任务完成后进入休眠
 - **自动唤醒**：到达下一个时间段开始时，自动开始下载
+
+### 统计数据上报说明
+
+- **不设置 `-stats-api` 参数**：不上报统计数据
+- **设置上报API**：`-stats-api https://api.example.com/stats`
+- **上报频率**：每10秒自动上报一次
+- **上报数据格式**（JSON）：
+  ```json
+  {
+    "name": "主机名称",
+    "speed": 15.5,     // 平均下载速度（MB/s）
+    "total": 1024.0,   // 总下载量（MB）
+    "time": "12:00-13:00, 14:00-15:00"  // 时间范围
+  }
+  ```
+- **HTTP方法**：POST
+- **Content-Type**：application/json
+
+**使用示例：**
+```bash
+# 启用统计上报
+./netflood -demo -stats-api https://api.example.com/stats
+
+# 使用简写
+./netflood -d -s https://api.example.com/stats
+
+# 完整示例：带时间段和统计上报
+./netflood -d -g 20 -t "09:00-18:00" -s https://api.example.com/stats
+```
 
 ## 输出
 
@@ -188,7 +219,26 @@ go build -o netflood ./cmd
 ⏰ 当前不在下载时间段内，等待到 14:00:00 (等待 55m30s)
 ```
 
-**示例 3：优雅退出**
+**示例 3：启用统计上报**
+```
+配置参数: API=, 协程数=12
+下载时间段: 全天候运行
+统计上报API: https://api.example.com/stats (每10秒上报一次)
+从 demo.txt 文件加载下载任务...
+成功加载 3 个下载任务
+
+开始下载，使用 12 个协程...
+速度统计将保存到 ./speed 文件
+⚡ 循环下载模式：协程将不停下载任务
+⚠️  按 Ctrl+C 优雅退出
+
+[速度统计] 当前速度: 18.45 MB/s | 平均速度: 15.23 MB/s | 总下载: 245.60 MB
+[Worker 0] 下载完成 https://imtt2.dd.qq.com/...
+[统计上报] 成功: 主机=my-server, 平均速度=15.23 MB/s, 总下载=245.60 MB, 时间段=全天候
+[Worker 1] 下载完成 https://s2.g.mi.com/...
+```
+
+**示例 4：优雅退出**
 ```
 ^C
 收到退出信号，等待当前下载任务完成...
