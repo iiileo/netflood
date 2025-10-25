@@ -182,28 +182,24 @@ func (d *Downloader) printFinalStats() {
 // worker 工作协程
 func (d *Downloader) worker(ctx context.Context, workerID int, taskChan <-chan DownloadTask) {
 	for task := range taskChan {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			err := d.downloadTask(ctx, task)
-			if err != nil {
-				// 检查是否是状态码错误
-				if strings.Contains(err.Error(), "HTTP状态码错误") {
-					// 静默跳过非200状态码，不输出错误
-					continue
-				}
-				// 其他错误正常输出
-				fmt.Printf("[Worker %d] 下载失败 %s: %v\n", workerID, task.URL, err)
-			} else {
-				fmt.Printf("[Worker %d] 下载完成 %s\n", workerID, task.URL)
+		// 不使用 ctx 来中断当前任务，让任务自然完成
+		err := d.downloadTask(task)
+		if err != nil {
+			// 检查是否是状态码错误
+			if strings.Contains(err.Error(), "HTTP状态码错误") {
+				// 静默跳过非200状态码，不输出错误
+				continue
 			}
+			// 其他错误正常输出
+			fmt.Printf("[Worker %d] 下载失败 %s: %v\n", workerID, task.URL, err)
+		} else {
+			fmt.Printf("[Worker %d] 下载完成 %s\n", workerID, task.URL)
 		}
 	}
 }
 
 // downloadTask 下载单个任务
-func (d *Downloader) downloadTask(ctx context.Context, task DownloadTask) error {
+func (d *Downloader) downloadTask(task DownloadTask) error {
 	// 解析 URL 获取域名
 	parsedURL, err := url.Parse(task.URL)
 	if err != nil {
@@ -240,11 +236,11 @@ func (d *Downloader) downloadTask(ctx context.Context, task DownloadTask) error 
 	// 创建自定义的 HTTP 客户端（直接使用 http 包，不使用 resty）
 	httpClient := &http.Client{
 		Transport: transport,
-		Timeout:   0, // 不设置超时，使用 context 控制
+		Timeout:   30 * time.Second, // 设置30秒超时
 	}
 
 	// 创建 HTTP 请求
-	req, err := http.NewRequestWithContext(ctx, "GET", task.URL, nil)
+	req, err := http.NewRequest("GET", task.URL, nil)
 	if err != nil {
 		return fmt.Errorf("创建请求失败: %w", err)
 	}
@@ -264,21 +260,16 @@ func (d *Downloader) downloadTask(ctx context.Context, task DownloadTask) error 
 	// 读取响应体，但不保存到硬盘
 	buf := make([]byte, 64*1024) // 64KB 缓冲区
 	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			n, err := resp.Body.Read(buf)
-			if n > 0 {
-				// 累加下载字节数
-				d.bytesDownloaded.Add(int64(n))
-			}
-			if err == io.EOF {
-				return nil
-			}
-			if err != nil {
-				return fmt.Errorf("读取响应失败: %w", err)
-			}
+		n, err := resp.Body.Read(buf)
+		if n > 0 {
+			// 累加下载字节数
+			d.bytesDownloaded.Add(int64(n))
+		}
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("读取响应失败: %w", err)
 		}
 	}
 }

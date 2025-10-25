@@ -77,8 +77,14 @@ func main() {
 
 	go func() {
 		<-sigChan
-		fmt.Println("\n收到退出信号，正在停止...")
+		fmt.Println("\n收到退出信号，等待当前下载任务完成...")
+		fmt.Println("⚠️  如需强制退出，请再次按 Ctrl+C")
 		cancel()
+
+		// 等待第二次信号，强制退出
+		<-sigChan
+		fmt.Println("\n收到强制退出信号，立即退出...")
+		os.Exit(1)
 	}()
 
 	// 开始下载
